@@ -1,0 +1,12 @@
+{
+  "timeout_seconds": 120,
+  "steps": [
+    {"action": "open", "url": "https://www.selenium.dev/selenium/web/web-form.html"},
+    {"action": "assert_text", "selector": "h1", "text": "Web form"},
+    {"action": "fill", "selector": "input[name='my-text']", "text": "MacBook Minion test"},
+    {"action": "capture", "name": "filled-form"},
+    {"action": "click", "selector": "button[type='submit']"},
+    {"action": "assert_text", "selector": "#message", "text": "Received!"},
+    {"action": "capture", "name": "submitted-form"}
+  ]
+}

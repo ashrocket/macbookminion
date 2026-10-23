@@ -1,0 +1,4 @@
+interface:
+  display_name: "MacBook Minion"
+  short_description: "Queue Intel Mac jobs with logs and a live dashboard"
+  default_prompt: "Use $macbook-minion to check the shared worker, submit a described job with this session's owner ID, and verify its results through the queue and audit."
