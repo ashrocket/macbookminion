@@ -74,14 +74,12 @@ def validate_config(config):
     return config
 
 
-def load_config(path):
+def load_config(path, worker=None):
+    import fleet
+    path = Path(path).expanduser()
     if not path.is_file():
         raise MinionError("Not paired. See references/pairing.md; then run configure.")
-    config = validate_config(json.loads(path.read_text()))
-    config["_config_path"] = str(path.expanduser().resolve())
-    host_hash = hashlib.sha256(config["host"].encode()).hexdigest()[:12]
-    config["_state_dir"] = str(path.expanduser().resolve().parent / ("state-" + host_hash))
-    return config
+    return fleet.select(path, worker)
 
 
 def ssh_base(config):
@@ -94,8 +92,35 @@ def ssh_base(config):
     return args
 
 
+
+def identity_guard(config):
+    """Bash 3.2 guard executed on the same SSH connection as every operation.
+
+    Legacy pairings lack a recorded physical ID and retain their original SSH
+    host-key behavior. Registered workers must match their recorded host UUID.
+    """
+    if "worker_uid" not in config:
+        return ""
+    expected = config["worker_uid"]
+    if not isinstance(expected, str) or not re.fullmatch(r"[a-f0-9]{64}", expected):
+        raise MinionError("Invalid registered physical worker identity")
+    failure = "{ printf '%s\\n' 'Physical worker identity could not be verified; operation refused' >&2; exit 1; }"
+    # Reuse the probe's exact implementation so legacy Intel ioreg fallback
+    # and the operation guard cannot hash different values or formats.
+    script = SCRIPTS.joinpath("remote.sh").read_text()
+    block = re.search(r"# BEGIN WORKER IDENTITY\n(.*?)# END WORKER IDENTITY", script, re.S)
+    if not block:
+        raise MinionError("Worker identity implementation is unavailable")
+    return (
+        "PATH=/usr/bin:/bin:/usr/sbin:/sbin; export PATH\n" + block.group(1)
+        + "minion_uid_hash=$(minion_worker_identity) || " + failure + "\n"
+        + '[ "$minion_uid_hash" = ' + shlex.quote(expected) + ' ] || ' + failure + "\n"
+        + "unset minion_uid_hash\n"
+    )
+
+
 def remote(config, action, *args, timeout=45):
-    payload = SCRIPTS.joinpath("remote.sh").read_text()
+    payload = identity_guard(config) + SCRIPTS.joinpath("remote.sh").read_text()
     payload += '\nremote_main "$HOME/.macbookminion" ' + shlex.join([action, *map(str, args)]) + "\n"
     request = "rpc-" + uuid.uuid4().hex
     job = next((str(a) for a in args if re.fullmatch(r"j-[a-z0-9-]+", str(a))), audit.CONTEXT.get().get("job"))
@@ -169,6 +194,13 @@ def manifest_text(files):
 def rsync(config, source, destination, *, file_list=None):
     args = ["rsync", "-rpt", "--chmod=u+rwX,go-rwx", "--no-links",
             "-e", shlex.join(ssh_base(config))]
+    guard = identity_guard(config)
+    if guard:
+        # rsync appends its server arguments after this command. Bash's $@
+        # preserves each argument; the guard runs before the remote server opens
+        # paths or receives file content, on that same SSH connection.
+        command = shlex.join(["/bin/bash", "-c", guard + 'exec /usr/bin/rsync "$@"', "minion-rsync"])
+        args += ["--rsync-path=" + command]
     if file_list:
         args += ["--files-from=" + str(file_list)]
     # All local paths are absolute and remote paths use only validated IDs.
@@ -224,6 +256,9 @@ def install_kill_switch(config):
 def put(config, source):
     source, files, skipped, total = inventory(source)
     snap = "s-" + uuid.uuid4().hex
+    store = audit.store_for(config)
+    if store:
+        store.state("snapshot:" + snap, {"worker": config.get("_worker_id", "default")})
     # Allow 10% transfer overhead plus the OS reserve; no source deletions.
     required = config["min_free_gib"] * 1024**2 + math.ceil(total * 1.1 / 1024)
     remote(config, "prepare_snapshot", snap, required)
@@ -239,12 +274,14 @@ def put(config, source):
             remote(config, "verify_snapshot", snap, timeout=None)
         except (MinionError, subprocess.TimeoutExpired) as error:
             raise MinionError(f"Snapshot {snap} was not verified; retained for inspection. {error}") from error
-    return {"snapshot": snap, "files": len(files), "bytes": total,
+    return {"snapshot": snap, "worker": config.get("_worker_id", "default"), "files": len(files), "bytes": total,
             "skipped": skipped, "sha256_verified": True}
 
 
 def run_job(config, snapshot, script, reserve_output_gib, owner="manual"):
     identifier(snapshot)
+    from fleet import assert_item_worker
+    assert_item_worker(config, snapshot)
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}", owner):
         raise MinionError("Owner must be a short project/session ID without spaces")
     script = script.expanduser().resolve()
@@ -286,6 +323,8 @@ def verify_download(destination, manifest):
 
 def fetch(config, kind, item_id, destination):
     identifier(item_id)
+    from fleet import assert_item_worker
+    assert_item_worker(config, item_id)
     destination = destination.expanduser().absolute()
     if destination.exists() or destination.is_symlink():
         raise MinionError("Destination must be new; existing files are never overwritten")
@@ -372,7 +411,17 @@ def browser_job(config, owner, *, plan=None, setup=False, selftest=False, title=
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    p.add_argument("--worker", help="Configured worker ID; defaults to default_worker or legacy default")
+    p.add_argument("--expected-host", help=argparse.SUPPRESS)
     sub = p.add_subparsers(dest="action", required=True)
+    sub.add_parser("fleet", help="Read current capacity and queued work across configured workers")
+    q = sub.add_parser("worker-add", help="Probe and register a distinct macOS worker")
+    q.add_argument("worker_id")
+    q.add_argument("--host", required=True)
+    q.add_argument("--identity", required=True, type=Path)
+    q.add_argument("--min-free-gib", type=int, default=25)
+    from workflows import add_arguments
+    add_arguments(sub)
     sub.add_parser("doctor", help="Check local prerequisites and pairing metadata")
     for command in ("probe", "configure"):
         q = sub.add_parser(command, help="Read-only worker inventory" if command == "probe" else "Verify SSH and save local pairing")
@@ -443,21 +492,39 @@ def main(argv=None):
             source, files, skipped, total = inventory(args.source)
             emit({"source": str(source), "files": [n for n, _ in files], "bytes": total, "skipped": skipped})
             return 0
+        if args.action in ("pressure", "route", "offload", "research"):
+            from workflows import handle
+            result = handle(args)
+            emit(result)
+            return 2 if result.get("decision") == "defer" or result.get("routing", {}).get("decision") == "defer" else 0
+        if args.action == "fleet":
+            from fleet import overview
+            emit(overview(args.config))
+            return 0
+        if args.action == "worker-add":
+            from fleet import add_worker
+            emit(add_worker(args.config, args.worker_id, args.host, args.identity, args.min_free_gib))
+            return 0
         if args.action in ("probe", "configure") and args.host:
+            if args.worker:
+                raise MinionError("Do not combine --worker with an explicit --host; use worker-add")
             config = validate_config({"host": args.host, "identity": str(args.identity) if args.identity else None,
                                       "min_free_gib": args.min_free_gib})
         else:
-            config = load_config(args.config)
+            config = load_config(args.config, args.worker)
+        if args.expected_host and config["host"] != args.expected_host:
+            raise MinionError("Worker host changed; refusing to redirect the saved coordinator")
+        from fleet import assert_item_worker
+        for item in (getattr(args, "job", None), getattr(args, "snapshot", None)):
+            if item:
+                assert_item_worker(config, identifier(item))
         if args.action in ("probe", "configure"):
             info = key_values(remote(config, "probe"))
             if args.action == "configure":
                 if info.get("os") != "Darwin":
                     raise MinionError("Expected a macOS worker; configuration not saved")
-                args.config.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                # Exclusive creation avoids silently replacing an established pairing.
-                with args.config.open("x") as output:
-                    os.chmod(args.config, 0o600)
-                    json.dump(config, output, indent=2)
+                from fleet import save_initial
+                save_initial(args.config, config)
                 info["config_saved"] = str(args.config)
             emit(info)
         elif args.action == "init":

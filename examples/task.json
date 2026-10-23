@@ -1,0 +1,9 @@
+{
+  "kind": "test",
+  "portable": true,
+  "primary_only": false,
+  "min_memory_gib": 1,
+  "min_free_gib": 1,
+  "estimated_seconds": 120,
+  "required_arch": "x86_64"
+}

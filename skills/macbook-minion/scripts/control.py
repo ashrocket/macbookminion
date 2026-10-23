@@ -30,6 +30,8 @@ def submit(config, snapshot, script, reserve, owner, *, title=None, description=
     import minion
     transport = transport or minion
     transport.identifier(snapshot)
+    from fleet import assert_item_worker
+    assert_item_worker(config, snapshot)
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}", owner):
         raise ValueError("Owner must be a project/session identifier")
     if type(reserve) is not int or reserve < 1:
@@ -52,12 +54,13 @@ def submit(config, snapshot, script, reserve, owner, *, title=None, description=
         file.chmod(0o600)
     metadata = {"id": job, "title": title, "description": description, "owner": owner,
                 "kind": kind, "snapshot": snapshot, "reserve_output_gib": reserve,
+                "worker": config.get("_worker_id", "default"), "host": config["host"],
                 "created_at": audit.now(), "script_sha256": transport.digest(spool / "command.sh"),
                 "runner_sha256": transport.digest(spool / "runner.sh")}
     (spool / "metadata.json").write_text(audit.canonical(metadata))
     (spool / "metadata.json").chmod(0o600)
     store.enqueue(metadata)
-    result = {"job": job, "state": "queued", "title": title, "description": description, "owner": owner}
+    result = {"job": job, "worker": config.get("_worker_id", "default"), "state": "queued", "title": title, "description": description, "owner": owner}
     if start:
         try:
             result["dashboard_url"] = ensure_service(config)["url"]
@@ -143,6 +146,9 @@ class Coordinator:
         job, metadata = row["id"], row["metadata"]
         spool = self.store.root / "spool" / job
         t = self.transport
+        if metadata.get("host", self.config["host"]) != self.config["host"]:
+            self.store.transition(job, "attention", error="Saved job host differs; dispatch refused")
+            return
         with audit.context(job=job, owner=metadata["owner"]):
             for name, key in (("command.sh", "script_sha256"), ("runner.sh", "runner_sha256")):
                 if not (spool / name).is_file() or (spool / name).is_symlink() or t.digest(spool / name) != metadata[key]:
@@ -220,6 +226,15 @@ def service_info(config):
         return None
 
 
+def service_command(config):
+    command = [sys.executable, str(Path(__file__).with_name("minion.py")),
+               "--config", config["_config_path"]]
+    if config.get("_worker_id"):
+        command += ["--worker", config["_worker_id"]]
+    command += ["--expected-host", config["host"], "serve"]
+    return command
+
+
 def ensure_service(config):
     existing = service_info(config)
     if existing:
@@ -227,8 +242,7 @@ def ensure_service(config):
     store = audit.store_for(config)
     log = store.root / "controller.log"
     with log.open("ab") as output:
-        subprocess.Popen([sys.executable, str(Path(__file__).with_name("minion.py")),
-                          "--config", config["_config_path"], "serve"],
+        subprocess.Popen(service_command(config),
                          stdin=subprocess.DEVNULL, stdout=output, stderr=output,
                          start_new_session=True, close_fds=True)
     log.chmod(0o600)

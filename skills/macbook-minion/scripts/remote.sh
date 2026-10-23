@@ -2,7 +2,7 @@
 # Sent over SSH on demand. Compatible with the system Bash 3.2 on older Macs.
 set -euo pipefail
 umask 077
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 # Newer SSH clients can forward C.UTF-8, which older macOS does not provide.
 export LC_ALL=C LANG=C LC_CTYPE=C
 
@@ -22,19 +22,52 @@ space_check() {
   [[ "$free" =~ ^[0-9]+$ && "$needed" =~ ^[0-9]+$ ]] || fail 'Cannot measure free space'
   [ "$free" -ge "$needed" ] || fail "Insufficient space: ${free} KiB free; ${needed} KiB required"
 }
+# BEGIN WORKER IDENTITY
+minion_worker_identity() {
+  local raw digest
+  raw=$(sysctl -n kern.hostuuid 2>/dev/null || true)
+  if [ -z "$raw" ]; then
+    raw=$(/usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | /usr/bin/awk -F '"' '$2 == "IOPlatformUUID" {print $4; exit}' || true)
+  fi
+  [ -n "$raw" ] || return 1
+  digest=$(printf '%s' "$raw" | /usr/bin/shasum -a 256) || return 1
+  printf '%s\n' "${digest%% *}"
+}
+# END WORKER IDENTITY
+
 probe() {
-  printf 'os='; uname -s
-  printf 'arch='; uname -m
-  printf 'macos='; sw_vers -productVersion 2>/dev/null || true
-  printf 'model='; sysctl -n hw.model 2>/dev/null || true
-  printf 'cpu='; sysctl -n machdep.cpu.brand_string 2>/dev/null || true
-  printf 'logical_cpus='; sysctl -n hw.logicalcpu 2>/dev/null || true
-  printf 'memory_bytes='; sysctl -n hw.memsize 2>/dev/null || true
+  printf 'os=%s\n' "$(uname -s)"
+  printf 'arch=%s\n' "$(uname -m)"
+  printf 'macos=%s\n' "$(sw_vers -productVersion 2>/dev/null || true)"
+  printf 'model=%s\n' "$(sysctl -n hw.model 2>/dev/null || true)"
+  printf 'cpu=%s\n' "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"
+  printf 'logical_cpus=%s\n' "$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+  printf 'memory_bytes=%s\n' "$(sysctl -n hw.memsize 2>/dev/null || true)"
+  printf 'load1=%s\n' "$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}' || true)"
+  local pressure uid
+  pressure=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null || true)
+  case "$pressure" in
+    1) pressure=normal ;;
+    2) pressure=warn ;;
+    4) pressure=critical ;;
+    *) pressure=unknown ;;
+  esac
+  printf 'memory_pressure=%s\n' "$pressure"
+  uid=$(minion_worker_identity || true)
+  if [ -n "$uid" ]; then
+    printf 'worker_uid=%s\n' "$uid"
+  fi
+  printf 'active_job=%s\n' "$(cat "$root/active/job" 2>/dev/null || true)"
   printf 'free_kib='; free_kib "$HOME"
   printf 'power='; pmset -g batt 2>/dev/null | head -n 1 || true
   local tool
-  for tool in bash rsync shasum caffeinate git python3 node npm ffmpeg xcodebuild; do
+  for tool in bash rsync shasum caffeinate git python3 node ruby npm ffmpeg xcodebuild; do
     printf 'tool_%s=%s\n' "$tool" "$(command -v "$tool" || true)"
+  done
+  for tool in python3 node ruby; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      printf 'version_%s=%s\n' "$tool" "$("$tool" --version 2>/dev/null | head -n 1 || true)"
+    fi
   done
 }
 browser_probe() {

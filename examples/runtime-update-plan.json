@@ -1,0 +1,70 @@
+{
+  "kind": "human-reviewed-runtime-maintenance-plan",
+  "executable": false,
+  "status": "proposal-only",
+  "source_review_date": "2026-10-23",
+  "inventory_required": true,
+  "worker": {
+    "model": "MacBookPro11,4",
+    "historical_os": "macOS 12.7.6",
+    "architecture": "x86_64",
+    "fresh_inventory_artifact": null
+  },
+  "maintenance": {
+    "dedicated_standard_account_required": true,
+    "drain_shared_queue": true,
+    "attended_os_maintenance": true,
+    "verified_external_backup_required": true,
+    "tested_recovery_media_required": true,
+    "automatic_install": false,
+    "automatic_reboot": false,
+    "automatic_sip_change": false,
+    "automatic_root_patch": false,
+    "automatic_cleanup": false
+  },
+  "targets": [
+    {
+      "component": "macOS and OCLP",
+      "candidate": "Stable OCLP-supported macOS after exact model/build review",
+      "constraint": "2.5.1 was latest stable; Tahoe support was 3.0.0-rc.3 prerelease at review",
+      "approved_version": null,
+      "installed": false
+    },
+    {
+      "component": "Python",
+      "candidate": "Latest compatible 3.14 or 3.15 patch; dependency wheel compatibility decides",
+      "constraint": "Use upstream signed universal2 installer; keep old environment for rollback",
+      "approved_version": null,
+      "installed": false
+    },
+    {
+      "component": "Node.js",
+      "candidate": "Latest supported 24.x LTS patch",
+      "constraint": "Official darwin-x64 requires macOS >=13.5; blocked on unchanged Monterey",
+      "approved_version": null,
+      "installed": false
+    },
+    {
+      "component": "Ruby",
+      "candidate": "Latest compatible 4.0 or 3.4 patch in isolated toolchain",
+      "constraint": "Do not replace Apple system Ruby; compiler and dependencies require validation",
+      "approved_version": null,
+      "installed": false
+    },
+    {
+      "component": "PyTorch",
+      "candidate": "Current official Linux x86_64 CPU wheel on maintained Linux",
+      "constraint": "Current official macOS wheels are arm64; no old Intel macOS pin presented as current",
+      "approved_version": null,
+      "installed": false
+    }
+  ],
+  "verification": [
+    "Record exact upstream artifact URL, version, checksum and signature evidence",
+    "Capture before and after runtime inventory through shared queue",
+    "Verify graphical login, network, sleep/wake, SSH and OCLP root patch state after attended OS change",
+    "Run representative dependency install and tests in new isolated environment",
+    "Inspect job exit status and checksum-verified fetched output",
+    "Record recovery rehearsal and retain prior working environment"
+  ]
+}

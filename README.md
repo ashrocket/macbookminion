@@ -1,5 +1,47 @@
 # MacBook Minion
 
+**Give old Intel Macs useful work while your primary Mac stays responsive.**
+
+MacBook Minion connects HaiKrew's bounded tasks to a fleet of SSH workers. It
+measures primary CPU load, memory pressure and free disk, accepts explicit session
+token/quota readings, and selects an idle compatible worker. Subscription-powered
+Codex agents keep planning and reviewing; workers execute tests, computations and
+bounded public-web collection. Adding workers increases tool capacity, not model
+subscription quota.
+
+```sh
+./bin/minion pressure
+./bin/minion fleet
+./bin/minion route examples/task.json
+./bin/minion offload examples/smoke-input --task examples/task.json \
+  --script examples/smoke-job.sh --owner PROJECT/SESSION_ID \
+  --title 'Portable smoke test' --description 'Verify input and return a report.'
+./bin/minion research examples/research.json --owner PROJECT/SESSION_ID \
+  --title 'Python documentation' --description 'Collect one bounded public page.'
+```
+
+`offload` executes only an eligible remote placement. A `local` or `defer` result
+runs nothing. Use the returned worker and job ID to inspect completion and fetch
+checksummed results. See the [fleet and pressure guide](skills/macbook-minion/references/fleet.md)
+for task schemas, token-state inputs, registration, and failure behavior.
+
+The HTTP collector uses no browser or third-party package. It respects robots,
+rate limits and backoff, restricts origins and public IPs, and bounds pages, bytes,
+text and time. Headless Chrome remains available for explicit rendering tasks.
+Traffic uses the worker's actual network route; no proxy, fingerprint spoofing,
+CAPTCHA bypass or personal browser profiles are involved.
+
+Read the [blog post](docs/blog.md), [Intel/OpenCore maintenance guide](docs/intel-workers.md),
+and [security model](SECURITY.md). The current official PyTorch binary stack does
+not support Intel macOS; OCLP does not change that architecture constraint. OS
+maintenance and runtime patching have separate acceptance criteria from controller
+tests. This project does not automate bootloader changes or claim that an old
+machine is fully patched merely because a job runs.
+
+MIT licensed. Public examples contain no private worker configuration or results.
+
+## Controller and queue
+
 A Codex skill and SSH harness for offloading independent jobs and disposable
 scratch files to an Intel MacBook. No server agent, Python, Docker, or Codex
 installation is required on the older Mac for pairing and shell jobs. The
@@ -34,7 +76,7 @@ See the [queue and audit guide](skills/macbook-minion/references/queue.md).
 
 The harness provides a read-only hardware/tool probe, strict SSH host checks,
 filtered file plans, unique snapshots with SHA-256 verification, one background
-job at a time, persistent logs and exit status, and verified result retrieval.
+job per worker at a time, persistent logs and exit status, and verified result retrieval.
 New jobs are saved before dispatch, with a stable ID and immutable script hashes.
 The coordinator survives closing the chat. Restarting it reconciles existing work
 before dispatch; it never repeats a recorded launch. Give each submission a useful

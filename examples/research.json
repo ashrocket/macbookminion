@@ -1,0 +1,8 @@
+{
+  "urls": ["https://docs.python.org/3.15/library/urllib.robotparser.html"],
+  "max_pages": 1,
+  "max_depth": 0,
+  "delay_seconds": 2,
+  "timeout_seconds": 60,
+  "max_text_chars": 4000
+}

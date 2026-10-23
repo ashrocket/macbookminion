@@ -2,7 +2,9 @@
 
 All Codex sessions on the primary Mac use the installed skill's `scripts/minion.py`
 with the existing `~/.config/macbookminion/config.json`. Do not create per-session
-configs, dispatchers or ad-hoc SSH jobs. The default state directory is beside that
+configs, dispatchers or ad-hoc SSH jobs. Additional workers are registered in this
+same config with `worker-add`; see [fleet.md](fleet.md). Each host has one shared
+queue and coordinator. The default state directory is beside that
 config and keyed by worker host. Changing the config location or host alias makes
 a separate ledger; it does not create more worker capacity.
 

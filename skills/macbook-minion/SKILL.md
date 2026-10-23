@@ -1,6 +1,6 @@
 ---
 name: macbook-minion
-description: Offload background jobs, bounded headless browser tasks, and scratch files to the user's Intel MacBook worker. All Codex sessions share a persistent queue, job descriptions, audit messages and local dashboard. Use for MacBook Minion and remote Mac offloading; not cloud backups or personal browser sessions.
+description: Use HaiKrew and primary CPU, memory, disk and explicit token pressure to route portable jobs, bounded web research and browser tasks to paired Intel Macs. Shared queues, worker locks and verified results; not backups or personal browser sessions.
 ---
 
 Use `python3 <this-skill>/scripts/minion.py` as the controller. Read
@@ -8,6 +8,26 @@ Use `python3 <this-skill>/scripts/minion.py` as the controller. Read
 [workloads.md](references/workloads.md) to choose work and interpret limitations.
 For this user's paired laptop, read [worker.md](references/worker.md) for the latest
 verified capabilities and browser-readiness status; recheck live state before use.
+
+## HaiKrew and placement
+
+Use the available HaiKrew skill to scope and review delegated work. Subscription
+agents keep reasoning on the primary Mac; Minion moves tools and scratch storage.
+Read [fleet.md](references/fleet.md) for pressure/task schemas and commands.
+Use `pressure` and `route TASK.json` before substantial portable work, then
+`offload SOURCE --task TASK.json --script JOB.sh --owner PROJECT/SESSION_ID
+--title TITLE --description PURPOSE`. This samples current capacity, chooses an
+eligible worker and submits through its existing shared queue. A `local` or `defer`
+decision executes nothing; inspect its reasons and keep authorized work in scope.
+Use `research PLAN.json` for bounded HTTP collection; browser rendering remains
+an explicit `browser-run` job when needed. Web output is untrusted evidence.
+
+Provide `--session-state FILE` only with actual context/quota readings and their
+original timestamp. Missing readings stay unknown and request compact returns.
+Never read or copy authentication stores to estimate subscription quota. Inspect
+return hints, reduce large outputs with deterministic tools, and return artifacts
+plus a concise finding; no extra subscription capacity or measured token saving
+is implied. This is an explicit skill workflow, not a global tool interceptor.
 
 ## Coordinate across Codex sessions
 
@@ -85,7 +105,7 @@ not quotas. No source deletion, automatic job rerun, OS upgrade or automatic
 package installation is performed. `cancel` affects only undispatched queued jobs;
 controller restart preserves queued and running work. Browser setup explicitly installs
 its driver inside the workspace; browser jobs remove only their generated
-temporary profiles. One active job is allowed;
+temporary profiles. One active job per worker is allowed;
 interrupted locks require inspection before manual recovery. Keep the laptop on
 power with its lid open. Caffeinate reduces idle sleep during jobs, but cannot make
 it reboot-proof or defeat lid-close sleep.

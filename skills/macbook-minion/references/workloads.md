@@ -33,9 +33,10 @@ Artifacts written elsewhere in the snapshot can be retrieved with `get` after al
 jobs finish. Scripts receive no controller environment variables or auth files.
 They can still access anything their remote account can access.
 
-Default policy is one active job, 25 GiB kept free at preflight, and an additional
+Default policy is one active job per worker, 25 GiB kept free at preflight, and an additional
 5 GiB estimated output allowance. With roughly 100 GB free, start with a few small
 jobs and measure actual growth. These settings are not a storage quota. There is
-no persistent service, automatic queue, bulk cleanup, package installation, or
-Codex model running on the older Mac. Browser setup explicitly installs its driver;
+no remote persistent service, bulk cleanup, automatic package installation, or
+Codex model running on the older Mac. A primary-side coordinator manages each
+worker's durable queue. Browser setup explicitly installs its driver;
 browser jobs clean up only their generated profiles and processes.

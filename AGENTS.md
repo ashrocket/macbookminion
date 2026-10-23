@@ -7,6 +7,13 @@ independent background work and disposable scratch storage, not backups.
   macOS Bash 3.2, SSH, rsync, shasum, and built-in utilities. Do not require Python,
   Node, Docker, or Codex on the worker just to pair or inspect it.
 - Canonical skill source is `skills/macbook-minion/`. `bin/minion` uses that source.
+- HaiKrew owns bounded task design and review; `pressure`, `route`, and `offload`
+  place portable tool jobs using fresh observations. Subscription model execution
+  remains primary-side. Unknown token/quota readings must remain unknown.
+- Keep fleet registration in the existing canonical config. Preserve legacy host
+  state paths, one coordinator per host, identity checks and worker-pinned IDs.
+- Public research is bounded, robots-aware and direct-egress. Respect access
+  limits; do not add stealth, profile copying or denial retries.
 - All sessions submit through the shared persistent queue/config. Supply a real
   session owner, title and description, preserve job IDs, and use `queue`,
   `dashboard` and `audit` for evidence. Never bypass the coordinator or worker lock.
