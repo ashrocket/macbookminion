@@ -196,10 +196,16 @@ def rsync(config, source, destination, *, file_list=None):
             "-e", shlex.join(ssh_base(config))]
     guard = identity_guard(config)
     if guard:
-        # rsync appends its server arguments after this command. Bash's $@
-        # preserves each argument; the guard runs before the remote server opens
-        # paths or receives file content, on that same SSH connection.
-        command = shlex.join(["/bin/bash", "-c", guard + 'exec /usr/bin/rsync "$@"', "minion-rsync"])
+        # Let rsync append server arguments directly to exec. A bash -c wrapper
+        # and dummy $0 are not portable across macOS openrsync/rsync 2.6.9.
+        # The remote login shell checks identity on the transfer connection
+        # before the server opens paths or receives file content.
+        command = guard + "exec /usr/bin/rsync"
+        # Apple openrsync tokenizes this option before building SSH argv, unlike
+        # upstream rsync. Preserve the complete shell program as one token for
+        # that client; SSH then passes it intact to the remote login shell.
+        if execute(["rsync", "--version"], timeout=5).startswith("openrsync:"):
+            command = shlex.quote(command)
         args += ["--rsync-path=" + command]
     if file_list:
         args += ["--files-from=" + str(file_list)]

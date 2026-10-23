@@ -64,14 +64,40 @@ class WorkerIdentityTests(unittest.TestCase):
             command = next(arg.split("=", 1)[1] for arg in argv if arg.startswith("--rsync-path="))
             # A remote login shell parses this exactly as rsync's SSH command.
             # Replace only the absolute tool paths with controlled test fixtures.
-            words = shlex.split(command)
-            words[2] = self.shell_fixture(words[2])
-            result = subprocess.run(["/bin/bash", "-c", shlex.join(words) + " " + shlex.join(arguments)],
+            command = self.shell_fixture(command)
+            result = subprocess.run(["/bin/sh", "-c", command + " " + shlex.join(arguments)],
                                     text=True, capture_output=True)
             self.assertEqual(result.returncode == 0, success, result.stderr)
             self.assertEqual(self.args_file.exists(), success)
             if success:
                 self.assertEqual(json.loads(self.args_file.read_text()), arguments)
+
+    def test_actual_rsync_client_push_and_fetch_use_guard_without_dummy_argv(self):
+        # Exercise the installed rsync client's SSH-command serialization, which
+        # a direct bash fixture cannot reproduce. SSH is replaced locally only.
+        ssh = self.root / "fake-ssh"
+        ssh.write_text("#!" + sys.executable + "\nimport subprocess,sys\n"
+                       "sys.exit(subprocess.call(['/bin/sh', '-c', ' '.join(sys.argv[2:])]))\n")
+        ssh.chmod(0o700)
+        source = self.root / "source files"
+        source.mkdir()
+        (source / "quoted ' filename.txt").write_text("verified contents\n")
+        remote = self.root / "remote-destination"
+        fetched = self.root / "fetched"
+        real_guard = minion.identity_guard
+        def guard(config):
+            # Substitute only the identity-reading utility, never the actual
+            # installed rsync client or receiver.
+            return real_guard(config).replace("raw=$(sysctl ", "raw=$(" + shlex.quote(str(self.sysctl)) + " ")
+        with patch.object(minion, "ssh_base", return_value=[str(ssh)]), patch.object(minion, "identity_guard", side_effect=guard):
+            minion.rsync(self.config, str(source) + "/", "stable-alias:" + str(remote) + "/")
+            minion.rsync(self.config, "stable-alias:" + str(remote) + "/", str(fetched) + "/")
+            self.assertEqual((fetched / "quoted ' filename.txt").read_text(), "verified contents\n")
+            refused = self.root / "refused"
+            with self.assertRaises(minion.MinionError):
+                minion.rsync({**self.config, "worker_uid": "b" * 64}, str(source) + "/",
+                             "stable-alias:" + str(refused) + "/")
+            self.assertFalse(refused.exists())
 
     def test_missing_uuid_fails_before_remote_action(self):
         self.sysctl.write_text("#!/bin/bash\nexit 1\n")
