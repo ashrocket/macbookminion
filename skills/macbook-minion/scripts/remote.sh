@@ -116,28 +116,49 @@ browser_probe() {
   fi
   printf 'active_job=%s\n' "$(active_job)"
 }
+# Set the caller's local scalar without forking cat/a command substitution for
+# each field in a full-history overview. Match command substitution's removal
+# of trailing newlines while preserving whitespace and embedded newlines.
+read_status_scalar() {
+  local chunk
+  scalar=
+  if [ -f "$1" ] && [ -r "$1" ]; then
+    # Bash command substitution discarded NUL bytes, not the bytes after them.
+    # Consume every segment so malformed saved PIDs cannot become valid prefixes.
+    while IFS= read -r -d '' chunk || [ -n "$chunk" ]; do
+      scalar=$scalar$chunk
+    done < "$1"
+    while [[ "$scalar" == *$'\n' ]]; do scalar=${scalar%$'\n'}; done
+  else
+    scalar=${2-}
+  fi
+}
 job_status() {
-  local id=$1 dir pid saved live
+  local id=$1 dir pid saved live scalar encoded
   valid_id "$id"; dir="$root/jobs/$id"; safe_dir "$dir"
   printf 'job=%s\n' "$id"
-  printf 'owner=%s\n' "$(cat "$dir/owner" 2>/dev/null || printf unknown)"
+  read_status_scalar "$dir/owner" unknown
+  printf 'owner=%s\n' "$scalar"
   local field
   for field in snapshot created_at started_at finished_at; do
-    printf '%s=%s\n' "$field" "$(cat "$dir/$field" 2>/dev/null || true)"
+    read_status_scalar "$dir/$field"
+    printf '%s=%s\n' "$field" "$scalar"
   done
   if [ -e "$dir/launched" ]; then printf 'launched=yes\n'; fi
   for field in metadata.json worker_events.tsv; do
     if [ -f "$dir/$field" ]; then
-      printf '%s_b64=' "${field%%.*}"
-      base64 < "$dir/$field" | tr -d '\n'; printf '\n'
+      encoded=$(base64 < "$dir/$field")
+      printf '%s_b64=%s\n' "${field%%.*}" "${encoded//$'\n'/}"
     fi
   done
   if [ -f "$dir/retain_lock" ] && [ ! -f "$dir/lock_recovered" ]; then printf 'lock_retained=yes\n'; fi
   if [ -f "$dir/lock_recovered" ]; then printf 'lock_recovered=yes\n'; fi
   if [ -f "$dir/exit_code" ]; then
-    printf 'state=finished\nexit_code=%s\n' "$(cat "$dir/exit_code")"
+    read_status_scalar "$dir/exit_code"
+    printf 'state=finished\nexit_code=%s\n' "$scalar"
   elif [ -f "$dir/pid" ] && [ -f "$dir/process_start" ]; then
-    pid=$(cat "$dir/pid"); saved=$(cat "$dir/process_start")
+    read_status_scalar "$dir/pid"; pid=$scalar
+    read_status_scalar "$dir/process_start"; saved=$scalar
     [[ "$pid" =~ ^[0-9]+$ ]] || fail 'Invalid saved PID'
     live=$(ps -p "$pid" -o lstart= 2>/dev/null || true)
     if [ -n "$live" ] && [ "$live" = "$saved" ]; then
