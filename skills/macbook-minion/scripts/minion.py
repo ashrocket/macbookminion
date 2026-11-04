@@ -19,6 +19,7 @@ import uuid
 import zipfile
 from browser_plan import validate_plan
 import audit
+import local_context
 
 SCRIPTS = Path(__file__).resolve().parent
 DEFAULT_CONFIG = Path.home() / ".config/macbookminion/config.json"
@@ -45,6 +46,10 @@ def execute(argv, *, input=None, capture=True, timeout=None):
                             timeout=timeout, check=False)
     if result.returncode:
         detail = (result.stderr or result.stdout or "").strip() if capture else ""
+        if (Path(argv[0]).name in ("ssh", "rsync")
+                and re.search(r"(?m)^No user exists for uid [0-9]+\r?$", detail)
+                and not local_context.identity_available()):
+            raise local_context.LocalContextError()
         raise MinionError(f"{Path(argv[0]).name} exited {result.returncode}: {detail}")
     return result.stdout if capture else ""
 
@@ -470,6 +475,13 @@ def parser():
     q = sub.add_parser("serve", help="Run the queue coordinator and read-only dashboard in the foreground")
     q.add_argument("--port", type=int, default=8765)
     sub.add_parser("controller-stop", help="Stop local dispatch; remote jobs continue and the queue is saved")
+    sub.add_parser("controller-install", help="Install the shared coordinator as a macOS login LaunchAgent")
+    q = sub.add_parser("lock-inspect", help="Read retained ownership and reboot evidence without changing it")
+    q.add_argument("job")
+    q = sub.add_parser("recover-lock", help="Explicitly archive a finished retained lock after a verified reboot")
+    q.add_argument("job")
+    q.add_argument("--expected-owner", required=True)
+    q.add_argument("--owner", required=True, help="Authorized recovery actor project/session ID")
     for command in ("cancel", "retry-dispatch"):
         q = sub.add_parser(command)
         q.add_argument("job")
@@ -491,9 +503,11 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         if args.action == "doctor":
+            context = local_context.inspect()
             emit({"python": sys.version.split()[0], "tools": {t: shutil.which(t) for t in ("ssh", "rsync", "ssh-keygen", "ssh-copy-id")},
-                  "config": str(args.config), "configured": args.config.is_file(), "live_connection_tested": False})
-            return 0
+                  "config": str(args.config), "configured": args.config.is_file(), "live_connection_tested": False,
+                  "local_context": context})
+            return 0 if context["ready"] else 1
         if args.action == "plan":
             source, files, skipped, total = inventory(args.source)
             emit({"source": str(source), "files": [n for n, _ in files], "bytes": total, "skipped": skipped})
@@ -562,6 +576,17 @@ def main(argv=None):
         elif args.action == "browser-run":
             plan = validate_plan(json.loads(args.plan.read_text()))
             emit(browser_job(config, args.owner, plan=plan, title=args.title, description=args.description))
+        elif args.action == "controller-install":
+            import launch_agent
+            emit(launch_agent.install(config))
+        elif args.action == "lock-inspect":
+            emit(key_values(remote(config, "lock_inspect", identifier(args.job))))
+        elif args.action == "recover-lock":
+            for owner in (args.expected_owner, args.owner):
+                if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}", owner):
+                    raise MinionError("Invalid original or recovery owner")
+            with audit.context(job=args.job, owner=args.owner):
+                emit(key_values(remote(config, "recover_lock", identifier(args.job), args.expected_owner, args.owner)))
         elif args.action in ("queue", "dashboard", "serve", "sync", "cancel", "retry-dispatch", "controller-stop", "audit"):
             from control import Coordinator, ensure_service, serve, stop_service
             store = audit.store_for(config)
