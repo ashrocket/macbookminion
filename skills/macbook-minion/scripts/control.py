@@ -16,6 +16,7 @@ import urllib.request
 import uuid
 
 import audit
+import local_context
 
 TERMINAL = {"succeeded", "failed", "cancelled"}
 
@@ -177,8 +178,16 @@ class Coordinator:
             head, remote_jobs = self.sync()
         except Exception as error:
             old = self.store.state("worker") or {}
+            if isinstance(error, local_context.LocalContextError):
+                self.store.state("worker", {**old, "online": None, "checked_at": audit.now(),
+                    "error": type(error).__name__, "error_code": error.code, "host": self.config["host"]})
+                if old.get("error_code") != error.code:
+                    self.store.event("controller", "sender", "controller.context_unavailable",
+                                     "Local user/session services unavailable; worker state is unknown and dispatch is paused",
+                                     details={"error_code": error.code})
+                return False
             self.store.state("worker", {**old, "online": False, "checked_at": audit.now(),
-                                       "error": type(error).__name__, "host": self.config["host"]})
+                                       "error": type(error).__name__, "error_code": None, "host": self.config["host"]})
             if old.get("online") is not False:
                 self.store.event("controller", "sender", "worker.unreachable", "Cannot confirm worker state; dispatch is paused",
                                  details={"error_type": type(error).__name__})
@@ -239,26 +248,47 @@ def ensure_service(config):
     existing = service_info(config)
     if existing:
         return existing
+    local_context.require_healthy()
+    import launch_agent
+    managed = launch_agent.start_if_installed(config)
     store = audit.store_for(config)
     log = store.root / "controller.log"
-    with log.open("ab") as output:
-        subprocess.Popen(service_command(config),
-                         stdin=subprocess.DEVNULL, stdout=output, stderr=output,
-                         start_new_session=True, close_fds=True)
-    log.chmod(0o600)
+    child = None
+    if not managed:
+        with log.open("ab") as output:
+            child = subprocess.Popen(service_command(config),
+                                     stdin=subprocess.DEVNULL, stdout=output, stderr=output,
+                                     start_new_session=True, close_fds=True)
+        log.chmod(0o600)
     deadline = time.monotonic() + 8
     while time.monotonic() < deadline:
         info = service_info(config)
         if info:
             return info
+        if child is not None and child.poll() is not None:
+            raise OSError(f"Controller exited with status {child.returncode}; inspect its private controller.log")
         time.sleep(0.1)
     raise TimeoutError("Controller did not become ready; inspect its private controller.log")
 
 
 def stop_service(config):
+    import launch_agent
+    managed = launch_agent.stop_if_installed(config)
     info = service_info(config)
     if not info:
-        return {"state": "not_running", "remote_jobs": "unchanged"}
+        # The LaunchAgent may not own the lock: a foreground/legacy coordinator
+        # can be running independently. Missing health is not proof of cessation.
+        try:
+            descriptor = os.open(audit.store_for(config).root / "service.lock", os.O_RDONLY | os.O_NOFOLLOW)
+        except FileNotFoundError:
+            descriptor = None
+        if descriptor is not None:
+            with os.fdopen(descriptor) as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    raise OSError("Cannot confirm coordinator stopped: ownership lock is still held; inspect the local service") from None
+        return {"state": "stopped" if managed else "not_running", "remote_jobs": "unchanged", "queue": "saved"}
     audit.store_for(config).event("sender", "controller", "controller.stop_requested", "Sender requested dispatch to stop; remote jobs continue")
     os.kill(info["pid"], signal.SIGTERM)
     return {"state": "stop_requested", "instance": info["instance"], "remote_jobs": "continue", "queue": "saved"}
@@ -266,6 +296,7 @@ def stop_service(config):
 
 @audit.context()
 def serve(config, port=8765):
+    local_context.require_healthy()
     from dashboard import make_server
     store = audit.store_for(config)
     with (store.root / "service.lock").open("a") as lock:
@@ -273,6 +304,8 @@ def serve(config, port=8765):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return
+        import launch_agent
+        launch_agent.configure_runtime(config)
         token = store.state("dashboard_token")
         if not token:
             token = secrets.token_urlsafe(32)
@@ -297,6 +330,8 @@ def serve(config, port=8765):
         try:
             while not stopping.is_set():
                 online = coordinator.tick()
+                if (store.state("worker") or {}).get("error_code") == local_context.CODE:
+                    raise local_context.LocalContextError()
                 stopping.wait(3 if online else 10)
         finally:
             server.shutdown()

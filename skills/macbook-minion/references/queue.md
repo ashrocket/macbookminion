@@ -84,8 +84,11 @@ scripts and worker artifacts are retained without automatic pruning or quotas.
 - `controller-stop` requests the local service to stop. Remote work continues,
   and queued jobs remain saved. `dashboard` or the next submission starts it again.
   Closing the controlling chat or browser does not stop the detached service.
-  There is no login/boot service installed; after a primary-Mac reboot, run
-  `dashboard` or submit a job to resume dispatch.
+  Without an explicit `controller-install`, no login service is installed; after
+  a primary-Mac reboot, run `dashboard` or submit a job to resume dispatch. With
+  the opt-in LaunchAgent, login starts this same coordinator. `controller-stop`
+  unloads it for the current login and reconciles any foreground coordinator;
+  `dashboard` starts it again. Config, queues and remote jobs are preserved.
 - Connection loss pauses new dispatch. The coordinator reconciles the same job ID
   before retrying incomplete staging, at most three attempts. A recorded launch
   is never sent again automatically, even when the original reply was lost.
@@ -100,3 +103,18 @@ scripts and worker artifacts are retained without automatic pruning or quotas.
 The coordinator uses a local process lock; the worker lock remains authoritative.
 Remote jobs run as the SSH account, not inside an OS sandbox. Use normal task
 permissions. The queue does not grant deployment, purchase, login or send authority.
+
+## Local context and retained ownership
+
+`doctor` reports local user/bootstrap failure separately from worker reachability.
+Read [local-context.md](local-context.md) before selecting a recovery path.
+
+For a finished job with uncertain browser cleanup, run `lock-inspect JOB_ID`.
+Only after explicit owner authorization, use `recover-lock JOB_ID
+--expected-owner ORIGINAL_PROJECT/SESSION_ID --owner RECOVERY_PROJECT/SESSION_ID`.
+The command requires a later worker reboot, exact original owner, and preserved
+finished/retained evidence. It archives the exact active lock within the original
+job, preserves exit status and outputs, and records the recovery actor. It never
+reruns the job. A durable reservation guard blocks new dispatch until recovery
+finishes. Interrupted recovery requires inspection and a subsequent attended
+reboot before resuming the same operation. Never remove that guard manually.

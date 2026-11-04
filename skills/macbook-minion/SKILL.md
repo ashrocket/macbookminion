@@ -9,6 +9,15 @@ Use `python3 <this-skill>/scripts/minion.py` as the controller. Read
 For this user's paired laptop, read [worker.md](references/worker.md) for the latest
 verified capabilities and browser-readiness status; recheck live state before use.
 
+Run `doctor` when local SSH fails before connecting. A nonzero result with
+`local_context_unavailable` means this process cannot resolve its own user or
+macOS launch manager; worker reachability remains unknown. Compare from a fresh
+authorized Terminal context before restarting anything. Never change SSH keys,
+invent an account, or bypass tool restrictions to hide this failure. See
+[local-context.md](references/local-context.md) for the opt-in macOS LaunchAgent
+and its lifecycle. `controller-install` is a shared installation, not a per-session
+dispatcher; use it only within the owner's authorized setup/repair task.
+
 ## HaiKrew and placement
 
 Use the available HaiKrew skill to scope and review delegated work. Subscription
@@ -109,6 +118,12 @@ temporary profiles. One active job per worker is allowed;
 interrupted locks require inspection before manual recovery. Keep the laptop on
 power with its lid open. Caffeinate reduces idle sleep during jobs, but cannot make
 it reboot-proof or defeat lid-close sleep.
+
+`lock-inspect JOB_ID` is read-only. `recover-lock JOB_ID --expected-owner ORIGINAL
+--owner PROJECT/SESSION_ID` requires explicit owner authorization for that lock,
+a finished retained job, and a verified later reboot. It archives ownership and
+records recovery without deleting artifacts or rerunning the old job. Never
+remove a retained lock or recovery guard by hand. See the queue recovery guide.
 
 The worker also keeps a local, offline kill switch installed by `init`
 (`~/.macbookminion/kill-switch.sh`, or double-click

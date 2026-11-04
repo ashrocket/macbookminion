@@ -11,6 +11,7 @@ import tempfile
 import time
 
 import audit
+import local_context
 
 
 def worker_id(value):
@@ -203,6 +204,8 @@ def observe(config, transport=None):
         # Never expose SSH stderr (which can contain private connection metadata),
         # or substitute stale capacity when an observation failed.
         state["error"] = type(error).__name__
+        if isinstance(error, local_context.LocalContextError):
+            state.update(online=None, error_code=error.code)
     state["observed_at"] = time.time()
     return state
 
