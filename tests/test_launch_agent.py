@@ -29,7 +29,8 @@ class LaunchAgentTests(unittest.TestCase):
         self.calls = []
         self.addCleanup(patch.stopall)
         patch.object(self.agent.Path, 'home', return_value=self.home).start()
-        patch.object(self.agent.os, 'getuid', return_value=501).start()
+        # Ownership checks must use the account that owns these real fixtures.
+        self.uid = os.getuid()
         self.preflight = patch.object(self.agent.local_context, 'require_healthy').start()
         self.run = patch.object(self.agent.subprocess, 'run', side_effect=self.launchctl).start()
 
@@ -59,10 +60,17 @@ class LaunchAgentTests(unittest.TestCase):
         self.assertTrue(self.preflight.called)
         self.assertEqual([a[1] for a in self.calls], ['print', 'bootstrap', 'kickstart'])
         self.assertNotIn('-k', sum(self.calls, []))
-        self.assertEqual(self.calls[1][2], 'gui/501')
+        self.assertEqual(self.calls[1][2], 'gui/' + str(self.uid))
         for call in self.run.call_args_list:
             self.assertEqual(call.kwargs['timeout'], 10)
             self.assertNotIn('shell', call.kwargs)
+
+    def test_root_install_is_refused_before_launchctl_or_metadata(self):
+        with patch.object(self.agent.os, 'getuid', return_value=0):
+            with self.assertRaisesRegex(OSError, 'non-root'):
+                self.agent.install(self.config)
+        self.assertEqual(self.calls, [])
+        self.assertFalse(self.agent.agent_path(self.config).exists())
 
     def test_start_after_stop_bootstraps_again_and_preserves_files(self):
         self.agent.install(self.config)
