@@ -2,6 +2,9 @@
 
 **Give old Intel Macs useful work while your primary Mac stays responsive.**
 
+[MacMinionFabric landing page](https://ashrocket.github.io/macbookminion/) ·
+[Page source and local preview](docs/landing-page.md)
+
 MacBook Minion connects HaiKrew's bounded tasks to a fleet of SSH workers. It
 measures primary CPU load, memory pressure and free disk, accepts explicit session
 token/quota readings, and selects an idle compatible worker. Subscription-powered

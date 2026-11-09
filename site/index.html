@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MacMinionFabric puts spare Intel Macs to work. Queue background jobs from Codex, follow their progress, and bring the results home.">
+  <meta name="theme-color" content="#ffffff">
+  <title>macminionfabric / useful work for spare Macs</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <div class="page">
+    <header>
+      <div class="masthead">
+        <a class="wordmark" href="./" aria-label="MacMinionFabric home"><span class="mark" aria-hidden="true">m</span>macminionfabric</a>
+        <span class="tagline">useful work for spare Macs</span>
+      </div>
+      <nav aria-label="Main navigation">
+        <a href="#about" aria-current="page">about</a>
+        <a href="#getting-started">getting started</a>
+        <a href="https://github.com/ashrocket/macbookminion/tree/main/skills/macbook-minion/references">documentation</a>
+        <a href="https://github.com/ashrocket/macbookminion">github</a>
+      </nav>
+    </header>
+
+    <main id="content">
+      <div class="columns">
+        <div class="main-column">
+          <section id="about" class="intro" aria-labelledby="intro-title">
+            <h1 id="intro-title">Your other Mac has a job now.</h1>
+            <p class="lead">Put a spare Intel Mac to work while you get on with yours.</p>
+            <p>MacMinionFabric connects Codex to the Macs you already have. Send a test run, a file conversion, or a bit of public-web research to a worker. Follow the job, then bring the results back.</p>
+            <p class="intro-links"><a href="https://github.com/ashrocket/macbookminion">Get the code</a> <span aria-hidden="true">&nbsp;|&nbsp;</span> <a href="https://github.com/ashrocket/macbookminion/blob/main/skills/macbook-minion/references/pairing.md">Pair your first Mac</a></p>
+          </section>
+
+          <section class="how" aria-labelledby="how-title">
+            <h2 id="how-title">A little network of useful computers.</h2>
+            <div class="diagram" role="img" aria-label="Codex on your main Mac sends jobs through a shared queue to a spare Intel Mac. Results return to your main Mac.">
+              <div class="machine"><span class="screen" aria-hidden="true">&gt;_</span><strong>your main Mac</strong><small>Codex plans &amp; reviews</small></div>
+              <span class="connector" aria-hidden="true">&#8596;</span>
+              <div class="queue"><span class="queue-lines" aria-hidden="true"><i></i><i></i><i></i></span><strong>shared queue</strong><small>jobs wait their turn</small></div>
+              <span class="connector" aria-hidden="true">&#8596;</span>
+              <div class="machine"><span class="screen worker-screen" aria-hidden="true">[&nbsp;]</span><strong>your spare Mac</strong><small>runs the work</small></div>
+            </div>
+            <p class="caption">Start with a pair. Add compatible workers as you need them.</p>
+            <dl class="features">
+              <div><dt>Keep working.</dt><dd>Move independent jobs and scratch files off your main machine.</dd></div>
+              <div><dt>Know where things stand.</dt><dd>A shared queue and local dashboard show each job’s owner, progress, and output.</dd></div>
+              <div><dt>Bring the results home.</dt><dd>Retrieve completed files with SHA-256 checksums to verify the transfer.</dd></div>
+            </dl>
+          </section>
+
+          <section id="getting-started" class="getting-started" aria-labelledby="start-title">
+            <h2 id="start-title">Start with the Mac you kept.</h2>
+            <p>You’ll need a controlling Mac with Python 3.8+, an Intel Mac with Remote Login, and a trusted network between them.</p>
+            <pre aria-label="Clone the repository and view command help"><code>git clone https://github.com/ashrocket/macbookminion.git
+cd macbookminion
+./bin/minion --help</code></pre>
+            <p>Then <a href="https://github.com/ashrocket/macbookminion/blob/main/skills/macbook-minion/references/pairing.md">follow the pairing guide</a> to connect your worker and run a first job.</p>
+          </section>
+        </div>
+
+        <aside aria-label="Project notes and links">
+          <section class="project-note">
+            <h2>Small project. Useful purpose.</h2>
+            <p>Built on MacBook Minion, an open-source SSH worker harness for Codex.</p>
+            <p>Plain Python on the controller. Ordinary shell tools on the worker. No server agent needed for shell jobs.</p>
+            <a href="https://github.com/ashrocket/macbookminion/blob/main/README.md">Read the README</a>
+          </section>
+          <section>
+            <h2>Good jobs for a spare Mac</h2>
+            <ul class="link-list">
+              <li><a href="https://github.com/ashrocket/macbookminion/blob/main/examples/smoke-job.sh">tests &amp; shell jobs</a></li>
+              <li><a href="https://github.com/ashrocket/macbookminion/blob/main/examples/media-job.sh">media conversion</a></li>
+              <li><a href="https://github.com/ashrocket/macbookminion/blob/main/skills/macbook-minion/references/fleet.md">bounded web research</a></li>
+              <li><a href="https://github.com/ashrocket/macbookminion/blob/main/skills/macbook-minion/references/browser.md">browser checks</a></li>
+            </ul>
+            <p class="small">Check each worker’s installed tools before sending a job.</p>
+          </section>
+          <section>
+            <h2>A few things to know</h2>
+            <p>Codex stays on your main Mac. Workers add tool capacity; model subscription limits stay the same.</p>
+            <p>Jobs use the SSH account’s permissions. A dedicated standard account is recommended.</p>
+            <a href="https://github.com/ashrocket/macbookminion/blob/main/SECURITY.md">Security &amp; boundaries</a>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <footer>
+      <span>macminionfabric <span aria-hidden="true">/</span> <a href="https://github.com/ashrocket/macbookminion/blob/main/LICENSE">MIT licensed</a></span>
+      <span><a href="https://github.com/ashrocket/macbookminion/issues">bugs &amp; ideas</a> <span aria-hidden="true">/</span> hosted on GitHub Pages</span>
+    </footer>
+  </div>
+</body>
+</html>
