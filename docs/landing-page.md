@@ -1,6 +1,6 @@
 # MacMinionFabric landing page
 
-The public landing page lives in `site/` and is served by GitHub Pages. It uses
+The public landing page lives in `site/` and is served by Cloudflare Pages. It uses
 plain HTML, CSS, a local SVG favicon, and system fonts. There are no JavaScript
 dependencies, hosted fonts, analytics, or external assets. All outbound links
 point to this GitHub repository.
@@ -19,10 +19,11 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory site
 Open `http://127.0.0.1:8000`. Check desktop and mobile layouts, keyboard focus,
 navigation, and the pairing/documentation links after changes.
 
-In repository Settings → Pages, the publishing source is GitHub Actions.
-`.github/workflows/pages.yml` uploads only `site/`, then deploys it on changes to
-that directory or the workflow on `main`. The workflow also supports a manual
-run on `main`. It uses GitHub's official actions pinned to commit hashes.
-
-GitHub's [custom workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
-documents the Pages deployment setup.
+Cloudflare Pages project `macbookminion` connects to this repository's `main`
+branch. Its build command is `bash scripts/verify-cloudflare-build.sh`, its
+output directory is `site`, and its root directory is `/`. It checks local page
+assets before publishing the static files. Pushes to `main` start the build.
+The controller's macOS test suite still runs locally with
+`python3 -m unittest discover -s tests -v`. The live address is
+<https://macbookminion.pages.dev/>. GitHub Actions is no longer used for this
+repository.

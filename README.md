@@ -2,7 +2,7 @@
 
 **Give old Intel Macs useful work while your primary Mac stays responsive.**
 
-[MacMinionFabric landing page](https://ashrocket.github.io/macbookminion/) ·
+[MacMinionFabric landing page](https://macbookminion.pages.dev/) ·
 [Page source and local preview](docs/landing-page.md)
 
 MacBook Minion connects HaiKrew's bounded tasks to a fleet of SSH workers. It
