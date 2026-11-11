@@ -21,8 +21,9 @@ navigation, and the pairing/documentation links after changes.
 
 Cloudflare Pages project `macbookminion` connects to this repository's `main`
 branch. Its build command is `bash scripts/verify-cloudflare-build.sh`, its
-output directory is `site`, and its root directory is `/`. It runs the controller
-test suite and Bash syntax checks before publishing the static files. Pushes to
-`main` start the build. The live address is
+output directory is `site`, and its root directory is `/`. It checks local page
+assets before publishing the static files. Pushes to `main` start the build.
+The controller's macOS test suite still runs locally with
+`python3 -m unittest discover -s tests -v`. The live address is
 <https://macbookminion.pages.dev/>. GitHub Actions is no longer used for this
 repository.
