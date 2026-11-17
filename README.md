@@ -1,5 +1,9 @@
 # MacBook Minion
 
+[Using HaiKrew with OpenAI Codex (WIP)](docs/haikrew-openai.md): install the
+standalone Codex crew skill and route OpenAI helpers. MacBook Minion placement is
+optional.
+
 **Give old Intel Macs useful work while your primary Mac stays responsive.**
 
 [MacMinionFabric landing page](https://macbookminion.pages.dev/) ·
