@@ -1,5 +1,10 @@
 # HaiKrew integration
 
+For **OpenAI Codex**, start with [HaiKrew installation and usage](../docs/haikrew-openai.md).
+It installs the standalone Codex skill and explains portable model routing,
+verification and optional native hooks. That crew workflow can be used without
+MacBook Minion. The remainder of this guide covers optional worker placement.
+
 Install `skills/macbook-minion/` in the agent's skill directory. Review changes
 before updating an existing installation. Keep its existing private config and
 state; installation does not register a new worker or create another queue.
